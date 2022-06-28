@@ -1,0 +1,58 @@
+version: "3.7"
+services:
+  frontend:
+    container_name: ips-frontend
+    image: "jwcraig/ips-frontend:latest"
+    depends_on:
+      - api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ips-frontend.entrypoints=websecure"
+      - "traefik.http.routers.ips-frontend.rule=Host(`${APP_DOMAIN:-localhost}`)"
+      - "traefik.http.middlewares.frontend-compress.compress=true"
+      - "traefik.http.routers.ips-frontend.service=frontend-secure"
+      - "traefik.http.routers.ips-frontend.tls=true"
+      - "traefik.http.routers.ips-frontend.middlewares=frontend-compress"
+      - "traefik.http.services.frontend-secure.loadbalancer.server.port=80"
+
+  api:
+    container_name: ips-api
+    restart: unless-stopped
+    image: "jwcraig/ips-api:latest"
+    depends_on:
+      - reverse-proxy
+    volumes:
+      - ${UPLOADS_PATH:-./uploads}:/app/uploads
+    env_file:
+      - .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ips-api.entrypoints=websecure"
+      - "traefik.http.routers.ips-api.rule=Host(`${APP_DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.ips-api.tls=true"
+      - "traefik.http.services.ips-api.loadbalancer.server.port=3000"
+    command: npm run start
+
+  reverse-proxy:
+    container_name: ips-traefik
+    image: traefik:v2.6
+    restart: always
+    command:
+      - --api.insecure=true # Traefik web UI (port 8080)
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      
+      # redirect to https
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.docker=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - C:/ips/certs/:/etc/certs/
+      - C:/ips/certs/certs-config.yaml:/etc/traefik/dynamic/certs-traefik.yaml
+

@@ -1,0 +1,4 @@
+tls:
+  certificates:
+    - certFile: /etc/certs/SSL_wildcard.hug-familie.ch.crt
+      keyFile: /etc/certs/SSL_wildcard.hug-familie.ch.key
